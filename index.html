@@ -1,1 +1,1207 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Car Cost & Fuel Tracker</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            400: '#4ade80',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            900: '#14532d',
+                        },
+                        fuel: {
+                            400: '#fb923c',
+                            500: '#f97316',
+                            600: '#ea580c',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+        /* Hide scrollbars for clean UI */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-screen transition-colors duration-200">
 
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- Top Navigation / Header -->
+        <header class="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-200 dark:border-slate-800 gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-brand-500 to-emerald-300 flex items-center justify-center text-white text-xl shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-car-battery"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                        Hybrid Cost Tracker
+                    </h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">PHEV & Hybrid Fuel & Electric Consumption Logs</p>
+                </div>
+            </div>
+
+            <!-- Controls (Currency, Theme, Export) -->
+            <div class="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                <select id="currency-select" onchange="updateCurrencySymbol(this.value)" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs sm:text-sm rounded-lg px-3 py-2 font-medium focus:ring-2 focus:ring-brand-500 outline-none">
+                    <option value="OMR">OMR (Omani Rial)</option>
+                    <option value="£">£ (GBP)</option>
+                    <option value="$">$ (USD)</option>
+                    <option value="€">€ (EUR)</option>
+                    <option value="C$">C$ (CAD)</option>
+                    <option value="A$">A$ (AUD)</option>
+                </select>
+
+                <button onclick="toggleDarkMode()" class="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Toggle Theme">
+                    <i class="fa-solid fa-moon dark:hidden"></i>
+                    <i class="fa-solid fa-sun hidden dark:block text-amber-400"></i>
+                </button>
+
+                <button onclick="openModal('settings-modal')" class="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Vehicle & Rate Settings">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+
+                <button onclick="exportData()" class="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition" title="Export Backup Data">
+                    <i class="fa-solid fa-download"></i>
+                </button>
+
+                <label class="p-2.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition cursor-pointer" title="Import Data">
+                    <i class="fa-solid fa-upload"></i>
+                    <input type="file" id="import-file" onchange="importData(event)" class="hidden" accept=".json">
+                </label>
+            </div>
+        </header>
+
+        <!-- Main Navigation Tabs -->
+        <div class="mt-6 flex border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
+            <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="tab-btn px-5 py-3 font-medium text-sm border-b-2 border-brand-500 text-brand-600 dark:text-brand-400 flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-chart-pie"></i> Dashboard & Analytics
+            </button>
+            <button onclick="switchTab('electric')" id="tab-btn-electric" class="tab-btn px-5 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-bolt text-emerald-500"></i> EV Charging Logs
+            </button>
+            <button onclick="switchTab('fuel')" id="tab-btn-fuel" class="tab-btn px-5 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-gas-pump text-fuel-500"></i> Fuel Logs
+            </button>
+            <button onclick="switchTab('settings')" id="tab-btn-settings" class="tab-btn px-5 py-3 font-medium text-sm border-b-2 border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 flex items-center gap-2 whitespace-nowrap">
+                <i class="fa-solid fa-sliders"></i> Vehicle Settings
+            </button>
+        </div>
+
+        <!-- TAB CONTENT: DASHBOARD -->
+        <div id="tab-dashboard" class="tab-content mt-6 space-y-6">
+
+            <!-- Quick Actions Banner -->
+            <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl bg-gradient-to-r from-slate-900 to-slate-800 text-white shadow-md">
+                <div class="flex items-center gap-3">
+                    <span class="p-2.5 rounded-lg bg-brand-500/20 text-brand-400">
+                        <i class="fa-solid fa-plus-circle text-xl"></i>
+                    </span>
+                    <div>
+                        <h3 class="font-semibold text-sm sm:text-base">Quick Log Entry</h3>
+                        <p class="text-xs text-slate-400">Add a new electric charging session or petrol/diesel top-up</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="openModal('charge-modal')" class="flex-1 sm:flex-none px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-brand-500 hover:bg-brand-600 text-white transition flex items-center justify-center gap-2 shadow">
+                        <i class="fa-solid fa-bolt"></i> + Add EV Charge
+                    </button>
+                    <button onclick="openModal('fuel-modal')" class="flex-1 sm:flex-none px-4 py-2 text-xs sm:text-sm font-semibold rounded-lg bg-fuel-500 hover:bg-fuel-600 text-white transition flex items-center justify-center gap-2 shadow">
+                        <i class="fa-solid fa-gas-pump"></i> + Add Fuel
+                    </button>
+                </div>
+            </div>
+
+            <!-- Summary KPI Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <!-- Card 1: Total Cost -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Total Combined Cost</p>
+                            <h2 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white" id="stat-total-cost">£0.00</h2>
+                        </div>
+                        <span class="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-wallet"></i>
+                        </span>
+                    </div>
+                    <div class="mt-4 flex items-center justify-between text-xs">
+                        <span class="text-emerald-500 font-medium" id="stat-ev-cost-badge"><i class="fa-solid fa-bolt"></i> EV: £0.00</span>
+                        <span class="text-fuel-500 font-medium" id="stat-fuel-cost-badge"><i class="fa-solid fa-gas-pump"></i> Fuel: £0.00</span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Cost Per Distance -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Avg Cost / <span class="dist-unit">Mile</span></p>
+                            <h2 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white" id="stat-cost-per-unit">£0.00</h2>
+                        </div>
+                        <span class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-gauge-high"></i>
+                        </span>
+                    </div>
+                    <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
+                        <span>Logged Distance: </span>
+                        <strong class="ml-1 text-slate-800 dark:text-slate-200" id="stat-total-distance">0 <span class="dist-unit">mi</span></strong>
+                    </div>
+                </div>
+
+                <!-- Card 3: EV Energy Used -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Total Electricity Charged</p>
+                            <h2 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white" id="stat-total-kwh">0 kWh</h2>
+                        </div>
+                        <span class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-plug"></i>
+                        </span>
+                    </div>
+                    <div class="mt-4 flex items-center text-xs text-slate-500 dark:text-slate-400">
+                        <span>Sessions: </span>
+                        <strong class="ml-1 text-slate-800 dark:text-slate-200" id="stat-charge-count">0</strong>
+                    </div>
+                </div>
+
+                <!-- Card 4: EV Energy Share % -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-medium text-slate-500 dark:text-slate-400">EV Spend Share</p>
+                            <h2 class="text-2xl font-bold mt-1 text-slate-900 dark:text-white" id="stat-ev-percentage">0%</h2>
+                        </div>
+                        <span class="w-10 h-10 rounded-xl bg-teal-500/10 text-teal-500 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-chart-pie"></i>
+                        </span>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="mt-4 w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden flex">
+                        <div id="progress-ev-share" class="bg-brand-500 h-full" style="width: 0%"></div>
+                        <div id="progress-fuel-share" class="bg-fuel-500 h-full" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Visual Analytics Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Monthly Spend Chart -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-column text-brand-500"></i> Monthly Spend Breakdown
+                        </h3>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="monthlyChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Cost Comparison Chart -->
+                <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-indigo-500"></i> Cost vs Usage Trends
+                        </h3>
+                    </div>
+                    <div class="relative h-64 w-full">
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity Table -->
+            <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-4">
+                    <h3 class="text-base font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-slate-400"></i> Recent Activity Logs
+                    </h3>
+                    <div class="flex items-center gap-2">
+                        <select id="filter-type" onchange="renderCombinedLogs()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-brand-500 outline-none">
+                            <option value="all">All Logs</option>
+                            <option value="charge">EV Charging Only</option>
+                            <option value="fuel">Fuel Only</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-400">
+                                <th class="py-3 px-3 font-medium">Type</th>
+                                <th class="py-3 px-3 font-medium">Date</th>
+                                <th class="py-3 px-3 font-medium">Amount / Energy</th>
+                                <th class="py-3 px-3 font-medium">Rate</th>
+                                <th class="py-3 px-3 font-medium">Total Cost</th>
+                                <th class="py-3 px-3 font-medium">Odometer</th>
+                                <th class="py-3 px-3 font-medium text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recent-logs-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- TAB CONTENT: ELECTRIC LOGS -->
+        <div id="tab-electric" class="tab-content mt-6 hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold">EV Charging Sessions</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Manage and add electric charging history</p>
+                </div>
+                <button onclick="openModal('charge-modal')" class="px-4 py-2 text-sm font-semibold rounded-lg bg-brand-500 hover:bg-brand-600 text-white transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-plus"></i> Add Charge Session
+                </button>
+            </div>
+
+            <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-400">
+                                <th class="py-3 px-3 font-medium">Date</th>
+                                <th class="py-3 px-3 font-medium">Method</th>
+                                <th class="py-3 px-3 font-medium">Details</th>
+                                <th class="py-3 px-3 font-medium">Energy (kWh)</th>
+                                <th class="py-3 px-3 font-medium">Rate</th>
+                                <th class="py-3 px-3 font-medium">Total Cost</th>
+                                <th class="py-3 px-3 font-medium">Odometer</th>
+                                <th class="py-3 px-3 font-medium text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="electric-logs-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB CONTENT: FUEL LOGS -->
+        <div id="tab-fuel" class="tab-content mt-6 hidden space-y-6">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h2 class="text-xl font-bold">Petrol / Diesel Top-ups</h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Manage fuel entries and price per unit</p>
+                </div>
+                <button onclick="openModal('fuel-modal')" class="px-4 py-2 text-sm font-semibold rounded-lg bg-fuel-500 hover:bg-fuel-600 text-white transition flex items-center gap-2 shadow">
+                    <i class="fa-solid fa-plus"></i> Add Fuel Top-up
+                </button>
+            </div>
+
+            <div class="glass-panel p-5 rounded-2xl shadow-sm">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-slate-200 dark:border-slate-700 text-slate-400">
+                                <th class="py-3 px-3 font-medium">Date</th>
+                                <th class="py-3 px-3 font-medium">Fuel Volume</th>
+                                <th class="py-3 px-3 font-medium">Price / Vol</th>
+                                <th class="py-3 px-3 font-medium">Total Cost</th>
+                                <th class="py-3 px-3 font-medium">Odometer</th>
+                                <th class="py-3 px-3 font-medium">Notes</th>
+                                <th class="py-3 px-3 font-medium text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fuel-logs-body" class="divide-y divide-slate-100 dark:divide-slate-800">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB CONTENT: SETTINGS -->
+        <div id="tab-settings" class="tab-content mt-6 hidden space-y-6">
+            <div class="max-w-2xl mx-auto glass-panel p-6 rounded-2xl shadow-sm space-y-6">
+                <div class="border-b border-slate-200 dark:border-slate-700 pb-4">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-brand-500"></i> Vehicle Configuration & Defaults
+                    </h2>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Configure hybrid battery capacities, home charger outputs, and default rates for accurate calculation math.</p>
+                </div>
+
+                <form id="settings-form" onsubmit="saveSettings(event)" class="space-y-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Usable Battery Capacity (kWh)
+                                <i class="fa-solid fa-circle-info text-slate-400 hover:text-brand-500 cursor-pointer ml-1" title="The net usable battery capacity of your hybrid (e.g. 10.4 kWh for Prius Prime, 14.4 kWh for RAV4 Prime)"></i>
+                            </label>
+                            <input type="number" step="0.1" id="cfg-battery-capacity" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Default Charger Rate (kW)
+                            </label>
+                            <select id="cfg-charger-rate" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="2.3">2.3 kW (Standard 3-Pin / 10A Outlet)</option>
+                                <option value="3.7">3.7 kW (Single Phase 16A Wallbox)</option>
+                                <option value="7.4">7.4 kW (Single Phase 32A Fast Charger)</option>
+                                <option value="11.0">11.0 kW (3-Phase Charger)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Default Electricity Rate (per kWh)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-400 text-sm currency-sym">£</span>
+                                <input type="number" step="0.001" id="cfg-elec-rate" required class="w-full pl-8 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Default Fuel Price (per Liter / Gal)
+                            </label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-2.5 text-slate-400 text-sm currency-sym">£</span>
+                                <input type="number" step="0.001" id="cfg-fuel-rate" required class="w-full pl-8 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Distance Unit
+                            </label>
+                            <select id="cfg-dist-unit" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="Miles">Miles (mi)</option>
+                                <option value="Kilometers">Kilometers (km)</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">
+                                Fuel Unit
+                            </label>
+                            <select id="cfg-fuel-unit" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                                <option value="Liters">Liters (L)</option>
+                                <option value="Gallons">Gallons (Gal)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="pt-4 flex justify-end gap-3">
+                        <button type="submit" class="px-6 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-sm font-semibold shadow transition">
+                            Save Settings
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODAL 1: ADD CHARGING LOG -->
+    <div id="charge-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="glass-panel bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 dark:border-slate-700">
+            <button onclick="closeModal('charge-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-brand-500/10 text-brand-500 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg">Log Charging Session</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Calculate electricity consumption with flexible inputs</p>
+                </div>
+            </div>
+
+            <form id="charge-form" onsubmit="saveChargeLog(event)" class="space-y-4">
+                <input type="hidden" id="charge-id">
+               
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Date & Time</label>
+                    <input type="datetime-local" id="charge-date" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                </div>
+
+                <!-- Calculation Method Selection -->
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-2">Calculation Method</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button type="button" onclick="setChargeCalcMethod('pct')" id="btn-calc-pct" class="calc-method-btn p-2 border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-lg text-xs font-semibold text-center transition">
+                            <i class="fa-solid fa-percent block text-sm mb-1"></i> Battery %
+                        </button>
+                        <button type="button" onclick="setChargeCalcMethod('time')" id="btn-calc-time" class="calc-method-btn p-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-semibold text-center transition">
+                            <i class="fa-solid fa-clock block text-sm mb-1"></i> Time Charged
+                        </button>
+                        <button type="button" onclick="setChargeCalcMethod('direct')" id="btn-calc-direct" class="calc-method-btn p-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-semibold text-center transition">
+                            <i class="fa-solid fa-calculator block text-sm mb-1"></i> Direct kWh
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Method A: Percentage Inputs -->
+                <div id="section-calc-pct" class="space-y-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                    <div class="flex items-center justify-between text-xs text-slate-500">
+                        <span>Usable Capacity: <strong id="lbl-battery-cap" class="text-slate-700 dark:text-slate-300">10.4 kWh</strong></span>
+                        <a href="javascript:void(0)" onclick="switchTab('settings'); closeModal('charge-modal')" class="text-brand-500 hover:underline">Edit</a>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Start %</label>
+                            <input type="number" min="0" max="100" id="charge-start-pct" value="15" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">End %</label>
+                            <input type="number" min="0" max="100" id="charge-end-pct" value="100" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Method B: Time Duration Inputs -->
+                <div id="section-calc-time" class="space-y-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hidden">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Hours</label>
+                            <input type="number" min="0" id="charge-hours" value="3" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Minutes</label>
+                            <input type="number" min="0" max="59" id="charge-mins" value="15" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Power (kW)</label>
+                            <input type="number" step="0.1" id="charge-kw-rate" value="3.7" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-xs text-slate-500">Efficiency Factor:</label>
+                        <select id="charge-efficiency" onchange="calculateChargePreview()" class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs rounded p-1">
+                            <option value="0.90">90% (Standard AC Losses)</option>
+                            <option value="0.85">85% (Cold Weather/Higher Loss)</option>
+                            <option value="1.00">100% (Theoretical Ideal)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Method C: Direct kWh -->
+                <div id="section-calc-direct" class="space-y-3 bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 hidden">
+                    <div>
+                        <label class="block text-xs text-slate-500 dark:text-slate-400 mb-1">Total kWh Consumed</label>
+                        <input type="number" step="0.01" id="charge-direct-kwh" value="8.8" oninput="calculateChargePreview()" class="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Common Rate & Odometer -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Cost / kWh</label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-400 text-sm currency-sym">£</span>
+                            <input type="number" step="0.001" id="charge-cost-kwh" required oninput="calculateChargePreview()" class="w-full pl-8 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Odometer (<span class="dist-unit">mi</span>)</label>
+                        <input type="number" id="charge-odometer" placeholder="Optional" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Preview Calculation Card -->
+                <div class="bg-gradient-to-r from-emerald-500/10 to-teal-500/10 p-3 rounded-xl border border-emerald-500/20 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Calculated Energy</p>
+                        <span id="preview-charge-kwh" class="text-lg font-bold text-emerald-600 dark:text-emerald-400">0.00 kWh</span>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Total Session Cost</p>
+                        <span id="preview-charge-cost" class="text-lg font-bold text-slate-900 dark:text-white">£0.00</span>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('charge-modal')" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-lg text-xs font-semibold transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-brand-500 hover:bg-brand-600 text-white rounded-lg text-xs font-semibold shadow transition">Save Charge Log</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL 2: ADD FUEL LOG -->
+    <div id="fuel-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 overflow-y-auto">
+        <div class="glass-panel bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl relative border border-slate-200 dark:border-slate-700">
+            <button onclick="closeModal('fuel-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-fuel-500/10 text-fuel-500 flex items-center justify-center text-lg">
+                    <i class="fa-solid fa-gas-pump"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg">Log Fuel Top-up</h3>
+                    <p class="text-xs text-slate-500 dark:text-slate-400">Record petrol or diesel fill up amounts</p>
+                </div>
+            </div>
+
+            <form id="fuel-form" onsubmit="saveFuelLog(event)" class="space-y-4">
+                <input type="hidden" id="fuel-id">
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Date & Time</label>
+                    <input type="datetime-local" id="fuel-date" required class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-fuel-500 outline-none">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Fuel Added (<span class="fuel-unit">Liters</span>)</label>
+                        <input type="number" step="0.01" id="fuel-volume" required oninput="calculateFuelPreview()" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-fuel-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Price / <span class="fuel-unit">Liter</span></label>
+                        <div class="relative">
+                            <span class="absolute left-3 top-2.5 text-slate-400 text-sm currency-sym">£</span>
+                            <input type="number" step="0.001" id="fuel-price-unit" required oninput="calculateFuelPreview()" class="w-full pl-8 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-fuel-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Odometer Reading (<span class="dist-unit">mi</span>)</label>
+                        <input type="number" id="fuel-odometer" required placeholder="e.g. 15400" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-fuel-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 mb-1">Notes / Gas Station</label>
+                        <input type="text" id="fuel-notes" placeholder="e.g. Shell Station" class="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-fuel-500 outline-none">
+                    </div>
+                </div>
+
+                <!-- Preview Total Card -->
+                <div class="bg-gradient-to-r from-orange-500/10 to-amber-500/10 p-3 rounded-xl border border-orange-500/20 flex items-center justify-between">
+                    <div>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">Total Fuel Cost</p>
+                        <span id="preview-fuel-cost" class="text-xl font-bold text-fuel-600 dark:text-fuel-400">£0.00</span>
+                    </div>
+                </div>
+
+                <div class="pt-2 flex justify-end gap-3">
+                    <button type="button" onclick="closeModal('fuel-modal')" class="px-4 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 rounded-lg text-xs font-semibold transition">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-fuel-500 hover:bg-fuel-600 text-white rounded-lg text-xs font-semibold shadow transition">Save Fuel Log</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast Notification Widget -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 transition-transform duration-300 translate-y-24 z-50 border border-slate-700 text-sm">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-brand-400 text-base"></i>
+        <span id="toast-msg">Operation completed successfully</span>
+    </div>
+
+    <!-- APP SCRIPT LOGIC -->
+    <script>
+        // Data State
+        let settings = {
+            currency: 'OMR',
+            batteryCapacity: 14.4,
+            chargerRate: 3.7,
+            defaultElecRate: 0.020,
+            defaultFuelRate: 0.239,
+            distUnit: 'Kilometers',
+            fuelUnit: 'Liters'
+        };
+
+        let chargeLogs = [];
+        let fuelLogs = [];
+        let activeCalcMethod = 'pct';
+        let monthlyChart = null;
+        let trendChart = null;
+
+        // Currency Decimal Helper (3 decimals for OMR, 2 for others)
+        function formatMoney(amount) {
+            const decimals = settings.currency === 'OMR' ? 3 : 2;
+            return `${settings.currency} ${Number(amount).toFixed(decimals)}`;
+        }
+
+        // Initialize Application
+        window.onload = function() {
+            loadFromLocalStorage();
+            initializeDefaults();
+            renderAll();
+            setupCharts();
+           
+            // Set current datetime for modals
+            const now = new Date().toISOString().slice(0, 16);
+            document.getElementById('charge-date').value = now;
+            document.getElementById('fuel-date').value = now;
+        };
+
+        function initializeDefaults() {
+            document.getElementById('currency-select').value = settings.currency;
+            document.getElementById('cfg-battery-capacity').value = settings.batteryCapacity;
+            document.getElementById('cfg-charger-rate').value = settings.chargerRate;
+            document.getElementById('cfg-elec-rate').value = settings.defaultElecRate;
+            document.getElementById('cfg-fuel-rate').value = settings.defaultFuelRate;
+            document.getElementById('cfg-dist-unit').value = settings.distUnit;
+            document.getElementById('cfg-fuel-unit').value = settings.fuelUnit;
+           
+            updateUnitLabels();
+        }
+
+        // Local Storage Persistence
+        function saveToLocalStorage() {
+            localStorage.setItem('hybrid_settings', JSON.stringify(settings));
+            localStorage.setItem('hybrid_charge_logs', JSON.stringify(chargeLogs));
+            localStorage.setItem('hybrid_fuel_logs', JSON.stringify(fuelLogs));
+        }
+
+        function loadFromLocalStorage() {
+            const storedSettings = localStorage.getItem('hybrid_settings');
+            const storedCharge = localStorage.getItem('hybrid_charge_logs');
+            const storedFuel = localStorage.getItem('hybrid_fuel_logs');
+
+            if (storedSettings) settings = JSON.parse(storedSettings);
+            if (storedCharge) chargeLogs = JSON.parse(storedCharge);
+            if (storedFuel) fuelLogs = JSON.parse(storedFuel);
+
+            // Populate sample data with OMR values if empty
+            if (chargeLogs.length === 0 && fuelLogs.length === 0) {
+                populateSampleData();
+            }
+        }
+
+        function populateSampleData() {
+            const today = new Date();
+            const daysAgo = (d) => new Date(today.getTime() - d * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
+            chargeLogs = [
+                { id: '1', date: daysAgo(1), method: 'pct', startPct: 20, endPct: 100, kwh: 11.52, costPerKwh: 0.020, totalCost: 0.230, odometer: 15450 },
+                { id: '2', date: daysAgo(3), method: 'time', hours: 3, mins: 15, kwRate: 3.7, kwh: 10.82, costPerKwh: 0.020, totalCost: 0.216, odometer: 15380 },
+                { id: '3', date: daysAgo(5), method: 'pct', startPct: 10, endPct: 90, kwh: 11.52, costPerKwh: 0.020, totalCost: 0.230, odometer: 15310 }
+            ];
+
+            fuelLogs = [
+                { id: '101', date: daysAgo(6), volume: 40.0, pricePerUnit: 0.239, totalCost: 9.560, odometer: 15300, notes: 'Al Maha Muscat' }
+            ];
+            saveToLocalStorage();
+        }
+
+        // Calculation Helpers
+        function setChargeCalcMethod(method) {
+            activeCalcMethod = method;
+            ['pct', 'time', 'direct'].forEach(m => {
+                const btn = document.getElementById(`btn-calc-${m}`);
+                const sec = document.getElementById(`section-calc-${m}`);
+                if (m === method) {
+                    btn.className = 'calc-method-btn p-2 border border-brand-500 bg-brand-500/10 text-brand-600 dark:text-brand-400 rounded-lg text-xs font-semibold text-center transition';
+                    sec.classList.remove('hidden');
+                } else {
+                    btn.className = 'calc-method-btn p-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 rounded-lg text-xs font-semibold text-center transition';
+                    sec.classList.add('hidden');
+                }
+            });
+            calculateChargePreview();
+        }
+
+        function calculateChargePreview() {
+            let kwh = 0;
+            const costPerKwh = parseFloat(document.getElementById('charge-cost-kwh').value) || 0;
+
+            if (activeCalcMethod === 'pct') {
+                const start = parseFloat(document.getElementById('charge-start-pct').value) || 0;
+                const end = parseFloat(document.getElementById('charge-end-pct').value) || 0;
+                const capacity = parseFloat(settings.batteryCapacity) || 14.4;
+                const pctDiff = Math.max(0, (end - start) / 100);
+                kwh = capacity * pctDiff;
+            } else if (activeCalcMethod === 'time') {
+                const hrs = parseFloat(document.getElementById('charge-hours').value) || 0;
+                const mins = parseFloat(document.getElementById('charge-mins').value) || 0;
+                const kwRate = parseFloat(document.getElementById('charge-kw-rate').value) || 3.7;
+                const eff = parseFloat(document.getElementById('charge-efficiency').value) || 0.90;
+                const totalHours = hrs + (mins / 60);
+                kwh = totalHours * kwRate * eff;
+            } else if (activeCalcMethod === 'direct') {
+                kwh = parseFloat(document.getElementById('charge-direct-kwh').value) || 0;
+            }
+
+            const totalCost = kwh * costPerKwh;
+            document.getElementById('preview-charge-kwh').textContent = `${kwh.toFixed(2)} kWh`;
+            document.getElementById('preview-charge-cost').textContent = formatMoney(totalCost);
+            return { kwh, totalCost };
+        }
+
+        function calculateFuelPreview() {
+            const vol = parseFloat(document.getElementById('fuel-volume').value) || 0;
+            const price = parseFloat(document.getElementById('fuel-price-unit').value) || 0;
+            const totalCost = vol * price;
+            document.getElementById('preview-fuel-cost').textContent = formatMoney(totalCost);
+            return totalCost;
+        }
+
+        // Save Log Functions
+        function saveChargeLog(e) {
+            e.preventDefault();
+            const { kwh, totalCost } = calculateChargePreview();
+            const costPerKwh = parseFloat(document.getElementById('charge-cost-kwh').value) || 0;
+
+            const log = {
+                id: document.getElementById('charge-id').value || Date.now().toString(),
+                date: document.getElementById('charge-date').value,
+                method: activeCalcMethod,
+                startPct: parseFloat(document.getElementById('charge-start-pct').value),
+                endPct: parseFloat(document.getElementById('charge-end-pct').value),
+                hours: parseFloat(document.getElementById('charge-hours').value),
+                mins: parseFloat(document.getElementById('charge-mins').value),
+                kwRate: parseFloat(document.getElementById('charge-kw-rate').value),
+                kwh: kwh,
+                costPerKwh: costPerKwh,
+                totalCost: totalCost,
+                odometer: document.getElementById('charge-odometer').value ? parseFloat(document.getElementById('charge-odometer').value) : null
+            };
+
+            const existingIdx = chargeLogs.findIndex(l => l.id === log.id);
+            if (existingIdx >= 0) {
+                chargeLogs[existingIdx] = log;
+                showToast('Charging log updated');
+            } else {
+                chargeLogs.unshift(log);
+                showToast('Charging log added');
+            }
+
+            saveToLocalStorage();
+            closeModal('charge-modal');
+            renderAll();
+        }
+
+        function saveFuelLog(e) {
+            e.preventDefault();
+            const vol = parseFloat(document.getElementById('fuel-volume').value) || 0;
+            const price = parseFloat(document.getElementById('fuel-price-unit').value) || 0;
+            const totalCost = vol * price;
+
+            const log = {
+                id: document.getElementById('fuel-id').value || Date.now().toString(),
+                date: document.getElementById('fuel-date').value,
+                volume: vol,
+                pricePerUnit: price,
+                totalCost: totalCost,
+                odometer: parseFloat(document.getElementById('fuel-odometer').value) || 0,
+                notes: document.getElementById('fuel-notes').value || ''
+            };
+
+            const existingIdx = fuelLogs.findIndex(l => l.id === log.id);
+            if (existingIdx >= 0) {
+                fuelLogs[existingIdx] = log;
+                showToast('Fuel log updated');
+            } else {
+                fuelLogs.unshift(log);
+                showToast('Fuel log added');
+            }
+
+            saveToLocalStorage();
+            closeModal('fuel-modal');
+            renderAll();
+        }
+
+        function deleteLog(type, id) {
+            if (type === 'charge') {
+                chargeLogs = chargeLogs.filter(l => l.id !== id);
+            } else {
+                fuelLogs = fuelLogs.filter(l => l.id !== id);
+            }
+            saveToLocalStorage();
+            renderAll();
+            showToast('Log entry removed');
+        }
+
+        // Render Functions
+        function renderAll() {
+            renderKPIs();
+            renderCombinedLogs();
+            renderElectricLogs();
+            renderFuelLogs();
+            updateCharts();
+        }
+
+        function renderKPIs() {
+            const totalEV = chargeLogs.reduce((acc, item) => acc + (item.totalCost || 0), 0);
+            const totalFuel = fuelLogs.reduce((acc, item) => acc + (item.totalCost || 0), 0);
+            const totalCost = totalEV + totalFuel;
+            const totalKwh = chargeLogs.reduce((acc, item) => acc + (item.kwh || 0), 0);
+
+            // Calculate Odometer distance span
+            const allOdometers = [
+                ...chargeLogs.map(l => l.odometer),
+                ...fuelLogs.map(l => l.odometer)
+            ].filter(o => o !== null && !isNaN(o) && o > 0);
+
+            let totalDistance = 0;
+            let costPerUnit = 0;
+            if (allOdometers.length >= 2) {
+                const minOdo = Math.min(...allOdometers);
+                const maxOdo = Math.max(...allOdometers);
+                totalDistance = maxOdo - minOdo;
+                if (totalDistance > 0) {
+                    costPerUnit = totalCost / totalDistance;
+                }
+            }
+
+            const evSharePct = totalCost > 0 ? (totalEV / totalCost) * 100 : 0;
+            const fuelSharePct = totalCost > 0 ? (totalFuel / totalCost) * 100 : 0;
+
+            document.getElementById('stat-total-cost').textContent = formatMoney(totalCost);
+            document.getElementById('stat-ev-cost-badge').innerHTML = `<i class="fa-solid fa-bolt"></i> EV: ${formatMoney(totalEV)}`;
+            document.getElementById('stat-fuel-cost-badge').innerHTML = `<i class="fa-solid fa-gas-pump"></i> Fuel: ${formatMoney(totalFuel)}`;
+
+            document.getElementById('stat-cost-per-unit').textContent = formatMoney(costPerUnit);
+            document.getElementById('stat-total-distance').textContent = `${totalDistance.toLocaleString()} ${settings.distUnit === 'Miles' ? 'mi' : 'km'}`;
+
+            document.getElementById('stat-total-kwh').textContent = `${totalKwh.toFixed(1)} kWh`;
+            document.getElementById('stat-charge-count').textContent = chargeLogs.length;
+
+            document.getElementById('stat-ev-percentage').textContent = `${evSharePct.toFixed(0)}%`;
+            document.getElementById('progress-ev-share').style.width = `${evSharePct}%`;
+            document.getElementById('progress-fuel-share').style.width = `${fuelSharePct}%`;
+
+            document.getElementById('lbl-battery-cap').textContent = `${settings.batteryCapacity} kWh`;
+        }
+
+        function renderCombinedLogs() {
+            const tbody = document.getElementById('recent-logs-body');
+            const filter = document.getElementById('filter-type').value;
+            tbody.innerHTML = '';
+
+            let combined = [];
+
+            if (filter === 'all' || filter === 'charge') {
+                chargeLogs.forEach(l => combined.push({ ...l, type: 'charge' }));
+            }
+            if (filter === 'all' || filter === 'fuel') {
+                fuelLogs.forEach(l => combined.push({ ...l, type: 'fuel' }));
+            }
+
+            combined.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            if (combined.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">No activity logs recorded yet.</td></tr>`;
+                return;
+            }
+
+            combined.forEach(item => {
+                const tr = document.createElement('tr');
+                const isEV = item.type === 'charge';
+                const dateFormatted = new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+                tr.innerHTML = `
+                    <td class="py-3 px-3">
+                        <span class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold ${isEV ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-orange-500/10 text-fuel-500'}">
+                            <i class="fa-solid ${isEV ? 'fa-bolt' : 'fa-gas-pump'}"></i> ${isEV ? 'EV Charge' : 'Fuel Top-up'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-3 text-slate-600 dark:text-slate-300">${dateFormatted}</td>
+                    <td class="py-3 px-3 font-medium">${isEV ? item.kwh.toFixed(2) + ' kWh' : item.volume.toFixed(2) + ' ' + settings.fuelUnit}</td>
+                    <td class="py-3 px-3 text-slate-500">${formatMoney(isEV ? item.costPerKwh : item.pricePerUnit)}</td>
+                    <td class="py-3 px-3 font-bold text-slate-900 dark:text-white">${formatMoney(item.totalCost)}</td>
+                    <td class="py-3 px-3 text-slate-500">${item.odometer ? item.odometer.toLocaleString() + ' ' + (settings.distUnit === 'Miles' ? 'mi' : 'km') : '-'}</td>
+                    <td class="py-3 px-3 text-right">
+                        <button onclick="deleteLog('${item.type}', '${item.id}')" class="text-slate-400 hover:text-red-500 transition px-2 py-1">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderElectricLogs() {
+            const tbody = document.getElementById('electric-logs-body');
+            tbody.innerHTML = '';
+
+            if (chargeLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-400">No charging logs recorded yet.</td></tr>`;
+                return;
+            }
+
+            chargeLogs.forEach(l => {
+                const tr = document.createElement('tr');
+                const dateFormatted = new Date(l.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute:'2-digit' });
+               
+                let methodDesc = '';
+                if (l.method === 'pct') methodDesc = `${l.startPct}% ➔ ${l.endPct}%`;
+                else if (l.method === 'time') methodDesc = `${l.hours || 0}h ${l.mins || 0}m @ ${l.kwRate}kW`;
+                else methodDesc = 'Direct Meter';
+
+                tr.innerHTML = `
+                    <td class="py-3 px-3 text-slate-600 dark:text-slate-300">${dateFormatted}</td>
+                    <td class="py-3 px-3 text-xs capitalize text-slate-500">${l.method}</td>
+                    <td class="py-3 px-3 text-slate-700 dark:text-slate-300 font-medium">${methodDesc}</td>
+                    <td class="py-3 px-3 font-semibold text-emerald-600 dark:text-emerald-400">${l.kwh.toFixed(2)} kWh</td>
+                    <td class="py-3 px-3 text-slate-500">${formatMoney(l.costPerKwh)}</td>
+                    <td class="py-3 px-3 font-bold text-slate-900 dark:text-white">${formatMoney(l.totalCost)}</td>
+                    <td class="py-3 px-3 text-slate-500">${l.odometer ? l.odometer.toLocaleString() : '-'}</td>
+                    <td class="py-3 px-3 text-right">
+                        <button onclick="deleteLog('charge', '${l.id}')" class="text-slate-400 hover:text-red-500 transition px-2 py-1">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderFuelLogs() {
+            const tbody = document.getElementById('fuel-logs-body');
+            tbody.innerHTML = '';
+
+            if (fuelLogs.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="py-6 text-center text-slate-400">No fuel logs recorded yet.</td></tr>`;
+                return;
+            }
+
+            fuelLogs.forEach(l => {
+                const tr = document.createElement('tr');
+                const dateFormatted = new Date(l.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+                tr.innerHTML = `
+                    <td class="py-3 px-3 text-slate-600 dark:text-slate-300">${dateFormatted}</td>
+                    <td class="py-3 px-3 font-semibold text-fuel-500">${l.volume.toFixed(2)} ${settings.fuelUnit}</td>
+                    <td class="py-3 px-3 text-slate-500">${formatMoney(l.pricePerUnit)}</td>
+                    <td class="py-3 px-3 font-bold text-slate-900 dark:text-white">${formatMoney(l.totalCost)}</td>
+                    <td class="py-3 px-3 text-slate-500">${l.odometer ? l.odometer.toLocaleString() : '-'}</td>
+                    <td class="py-3 px-3 text-slate-400 italic text-xs">${l.notes || '-'}</td>
+                    <td class="py-3 px-3 text-right">
+                        <button onclick="deleteLog('fuel', '${l.id}')" class="text-slate-400 hover:text-red-500 transition px-2 py-1">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Settings Management
+        function saveSettings(e) {
+            e.preventDefault();
+            settings.batteryCapacity = parseFloat(document.getElementById('cfg-battery-capacity').value) || 10.4;
+            settings.chargerRate = parseFloat(document.getElementById('cfg-charger-rate').value) || 3.7;
+            settings.defaultElecRate = parseFloat(document.getElementById('cfg-elec-rate').value) || 0.15;
+            settings.defaultFuelRate = parseFloat(document.getElementById('cfg-fuel-rate').value) || 1.45;
+            settings.distUnit = document.getElementById('cfg-dist-unit').value;
+            settings.fuelUnit = document.getElementById('cfg-fuel-unit').value;
+
+            saveToLocalStorage();
+            updateUnitLabels();
+            renderAll();
+            showToast('Settings saved successfully');
+        }
+
+        function updateCurrencySymbol(sym) {
+            settings.currency = sym;
+            saveToLocalStorage();
+            document.querySelectorAll('.currency-sym').forEach(el => el.textContent = sym);
+            renderAll();
+        }
+
+        function updateUnitLabels() {
+            document.querySelectorAll('.currency-sym').forEach(el => el.textContent = settings.currency);
+            document.querySelectorAll('.dist-unit').forEach(el => el.textContent = settings.distUnit === 'Miles' ? 'mi' : 'km');
+            document.querySelectorAll('.fuel-unit').forEach(el => el.textContent = settings.fuelUnit);
+
+            // Populate form default rates
+            document.getElementById('charge-cost-kwh').value = settings.defaultElecRate;
+            document.getElementById('fuel-price-unit').value = settings.defaultFuelRate;
+            document.getElementById('charge-kw-rate').value = settings.chargerRate;
+        }
+
+        // Charts Section
+        function setupCharts() {
+            const ctxMonthly = document.getElementById('monthlyChart').getContext('2d');
+            monthlyChart = new Chart(ctxMonthly, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'EV Charging Cost', data: [], backgroundColor: '#22c55e', borderRadius: 6 },
+                        { label: 'Fuel Cost', data: [], backgroundColor: '#f97316', borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+                    scales: {
+                        x: { stacked: true, grid: { display: false } },
+                        y: { stacked: true, grid: { color: 'rgba(150, 150, 150, 0.1)' } }
+                    }
+                }
+            });
+
+            const ctxTrend = document.getElementById('trendChart').getContext('2d');
+            trendChart = new Chart(ctxTrend, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'EV kWh Consumed', data: [], borderColor: '#22c55e', backgroundColor: 'rgba(34, 197, 94, 0.1)', fill: true, tension: 0.3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'top', labels: { boxWidth: 12 } } },
+                    scales: {
+                        x: { grid: { display: false } },
+                        y: { grid: { color: 'rgba(150, 150, 150, 0.1)' } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts() {
+            if (!monthlyChart || !trendChart) return;
+
+            // Group costs by Month
+            const months = {};
+            const formatMonthKey = (dStr) => {
+                const d = new Date(dStr);
+                return d.toLocaleString('default', { month: 'short', year: '2-digit' });
+            };
+
+            chargeLogs.forEach(l => {
+                const m = formatMonthKey(l.date);
+                if (!months[m]) months[m] = { ev: 0, fuel: 0 };
+                months[m].ev += l.totalCost || 0;
+            });
+
+            fuelLogs.forEach(l => {
+                const m = formatMonthKey(l.date);
+                if (!months[m]) months[m] = { ev: 0, fuel: 0 };
+                months[m].fuel += l.totalCost || 0;
+            });
+
+            const monthLabels = Object.keys(months);
+            const evData = monthLabels.map(m => months[m].ev);
+            const fuelData = monthLabels.map(m => months[m].fuel);
+
+            monthlyChart.data.labels = monthLabels;
+            monthlyChart.data.datasets[0].data = evData;
+            monthlyChart.data.datasets[1].data = fuelData;
+            monthlyChart.update();
+
+            // Direct kWh Trend
+            const sortedCharge = [...chargeLogs].sort((a, b) => new Date(a.date) - new Date(b.date));
+            trendChart.data.labels = sortedCharge.map(l => new Date(l.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+            trendChart.data.datasets[0].data = sortedCharge.map(l => l.kwh);
+            trendChart.update();
+        }
+
+        // Modal Controls & Navigation Tabs
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('border-brand-500', 'text-brand-600', 'dark:text-brand-400');
+                el.classList.add('border-transparent', 'text-slate-500');
+            });
+
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+            activeBtn.classList.remove('border-transparent', 'text-slate-500');
+            activeBtn.classList.add('border-brand-500', 'text-brand-600', 'dark:text-brand-400');
+        }
+
+        function openModal(modalId) {
+            updateUnitLabels();
+            document.getElementById(modalId).classList.remove('hidden');
+            if (modalId === 'charge-modal') calculateChargePreview();
+            if (modalId === 'fuel-modal') calculateFuelPreview();
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-msg').textContent = msg;
+            toast.classList.remove('translate-y-24');
+            setTimeout(() => {
+                toast.classList.add('translate-y-24');
+            }, 3000);
+        }
+
+        // Import / Export JSON Backup
+        function exportData() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({
+                settings,
+                chargeLogs,
+                fuelLogs
+            }, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `hybrid_tracker_backup_${new Date().toISOString().slice(0, 10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+            showToast('Backup file downloaded');
+        }
+
+        function importData(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported.settings) settings = imported.settings;
+                    if (imported.chargeLogs) chargeLogs = imported.chargeLogs;
+                    if (imported.fuelLogs) fuelLogs = imported.fuelLogs;
+
+                    saveToLocalStorage();
+                    initializeDefaults();
+                    renderAll();
+                    showToast('Data imported successfully!');
+                } catch (err) {
+                    showToast('Invalid backup JSON file.');
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+    </script>
+</body>
+</html>
